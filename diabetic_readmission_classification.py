@@ -611,7 +611,7 @@ def main():
         df_processed, target_encoder = preprocess_data(df)
         
         # Define balancing methods to test
-        balance_methods = ['none', 'undersample', 'smote']
+        balance_methods = ['undersample']
         all_results = {}
         all_comparisons = []
         
