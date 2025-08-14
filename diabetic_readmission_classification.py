@@ -30,6 +30,8 @@ from imblearn.under_sampling import RandomUnderSampler
 from imblearn.pipeline import Pipeline as ImbPipeline
 from tqdm.auto import tqdm
 import xgboost as xgb
+import lightgbm as lgb
+import pickle
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -231,13 +233,41 @@ def prepare_features(df_processed, balance_method='none'):
     
     return X_train_scaled, X_test_scaled, y_train, y_test, scaler
 
-def train_models(X_train, X_test, y_train, y_test, balance_method='none'):
+def save_model(model, model_name, balance_method, scaler, target_encoder, metrics):
+    """Save a trained model and related components as pickle files"""
+    import os
+    
+    # Create models directory if it doesn't exist
+    os.makedirs('models', exist_ok=True)
+    
+    # Create a unique filename
+    filename = f"models/{model_name}_{balance_method}_model.pkl"
+    
+    # Save model and related components
+    model_data = {
+        'model': model,
+        'scaler': scaler,
+        'target_encoder': target_encoder,
+        'model_name': model_name,
+        'balance_method': balance_method,
+        'metrics': metrics,
+        'timestamp': pd.Timestamp.now()
+    }
+    
+    with open(filename, 'wb') as f:
+        pickle.dump(model_data, f)
+    
+    print(f"Model saved as: {filename}")
+    return filename
+
+def train_models(X_train, X_test, y_train, y_test, balance_method='none', scaler=None, target_encoder=None):
     """Train multiple classification models"""
     print("\n=== TRAINING MODELS ===")
     
     models = {
         'Random Forest': RandomForestClassifier(n_estimators=100, random_state=42),
         'XGBoost': xgb.XGBClassifier(random_state=42),
+        'LightGBM': lgb.LGBMClassifier(random_state=42, verbose=-1),
         'Logistic Regression': LogisticRegression(random_state=42, max_iter=1000),
         'SVM': SVC(random_state=42, probability=True),
         'MLP': MLPClassifier(hidden_layer_sizes=(100, 50), random_state=42, max_iter=500)
@@ -264,6 +294,14 @@ def train_models(X_train, X_test, y_train, y_test, balance_method='none'):
         # Calculate recall for <30 days class (assuming it's class 1)
         recall_30 = recall_score(y_test, y_pred, labels=[1], average=None)[0] if 1 in y_test.unique() else 0
         
+        metrics = {
+            'accuracy': accuracy,
+            'precision': precision,
+            'recall': recall,
+            'f1': f1,
+            'recall_30': recall_30
+        }
+        
         results[name] = {
             'model': model,
             'y_pred': y_pred,
@@ -282,6 +320,10 @@ def train_models(X_train, X_test, y_train, y_test, balance_method='none'):
         tqdm.write(f"  F1-Score: {f1:.4f}")
         tqdm.write(f"  Recall for <30 days: {recall_30:.4f}")
         tqdm.write("")
+        
+        # Save each model
+        if scaler is not None and target_encoder is not None:
+            save_model(model, name, balance_method, scaler, target_encoder, metrics)
     
     return results
 
@@ -582,7 +624,7 @@ def main():
             X_train, X_test, y_train, y_test, scaler = prepare_features(df_processed, balance_method)
             
             # Train models
-            results = train_models(X_train, X_test, y_train, y_test, balance_method)
+            results = train_models(X_train, X_test, y_train, y_test, balance_method, scaler, target_encoder)
             
             # Evaluate models
             comparison_df, best_model = evaluate_models(results, y_test, target_encoder)
