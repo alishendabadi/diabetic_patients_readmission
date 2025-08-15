@@ -15,6 +15,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+import os
 from sklearn.model_selection import train_test_split, cross_val_score, GridSearchCV
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.ensemble import RandomForestClassifier
@@ -69,6 +70,31 @@ def load_and_explore_data():
     
     return df
 
+def handle_missing_values (df_processed):
+    # First, drop features with more than 35% missing values
+    missing_percent = df_processed.isnull().mean() * 100
+    columns_to_drop = missing_percent[missing_percent > 35].index.tolist()
+    
+    if columns_to_drop:
+        print(f"Dropping columns with >35% missing values: {columns_to_drop}")
+        df_processed.drop(columns=columns_to_drop, inplace=True)
+    else:
+        print("No columns with >35% missing values found")
+    
+    # For remaining categorical columns, fill with 'Unknown'
+    categorical_columns = df_processed.select_dtypes(include=['object']).columns
+    for col in categorical_columns:
+        if col in df_processed.columns and df_processed[col].isnull().sum() > 0:
+            df_processed[col].fillna('Unknown', inplace=True)
+    
+    # For remaining numerical columns, fill with median
+    numerical_columns = df_processed.select_dtypes(include=['int64', 'float64']).columns
+    for col in numerical_columns:
+        if col in df_processed.columns and df_processed[col].isnull().sum() > 0:
+            df_processed[col].fillna(df_processed[col].median(), inplace=True)
+
+    return df_processed, categorical_columns, numerical_columns
+
 def preprocess_data(df):
     """Preprocess the data including handling missing values and encoding"""
     print("\n=== PREPROCESSING DATA ===")
@@ -78,19 +104,10 @@ def preprocess_data(df):
     
     # Handle missing values
     print("Handling missing values...")
-    
-    # For categorical columns, fill with 'Unknown'
-    categorical_columns = df_processed.select_dtypes(include=['object']).columns
-    for col in categorical_columns:
-        if df_processed[col].isnull().sum() > 0:
-            df_processed[col].fillna('Unknown', inplace=True)
-    
-    # For numerical columns, fill with median
-    numerical_columns = df_processed.select_dtypes(include=['int64', 'float64']).columns
-    for col in numerical_columns:
-        if df_processed[col].isnull().sum() > 0:
-            df_processed[col].fillna(df_processed[col].median(), inplace=True)
-    
+    df_processed, categorical_columns, numerical_columns = handle_missing_values(df_processed)
+
+    feature_names = [name for name in df_processed.columns.tolist() if name != 'readmitted']
+    print(f"Remaining Features: {feature_names}")
     # Encode categorical variables
     print("Encoding categorical variables...")
     label_encoders = {}
@@ -115,7 +132,7 @@ def preprocess_data(df):
     
     print(f"Final dataset shape after preprocessing: {df_processed.shape}")
     
-    return df_processed, target_encoder
+    return df_processed, target_encoder, feature_names
 
 def apply_undersampling(X_train, y_train):
     """Apply undersampling to balance the dataset"""
@@ -233,7 +250,7 @@ def prepare_features(df_processed, balance_method='none'):
     
     return X_train_scaled, X_test_scaled, y_train, y_test, scaler
 
-def save_model(model, model_name, balance_method, scaler, target_encoder, metrics):
+def save_model(model, model_name, balance_method, scaler, target_encoder, metrics, feature_names):
     """Save a trained model and related components as pickle files"""
     import os
     
@@ -251,7 +268,8 @@ def save_model(model, model_name, balance_method, scaler, target_encoder, metric
         'model_name': model_name,
         'balance_method': balance_method,
         'metrics': metrics,
-        'timestamp': pd.Timestamp.now()
+        'timestamp': pd.Timestamp.now(),
+        'feature_names': feature_names
     }
     
     with open(filename, 'wb') as f:
@@ -260,15 +278,15 @@ def save_model(model, model_name, balance_method, scaler, target_encoder, metric
     print(f"Model saved as: {filename}")
     return filename
 
-def train_models(X_train, X_test, y_train, y_test, balance_method='none', scaler=None, target_encoder=None):
+def train_models(X_train, X_test, y_train, y_test, feature_names, balance_method='none', scaler=None, target_encoder=None):
     """Train multiple classification models"""
     print("\n=== TRAINING MODELS ===")
     
     models = {
-        'Random Forest': RandomForestClassifier(n_estimators=100, random_state=42),
+        'RandomForest': RandomForestClassifier(n_estimators=100, random_state=42),
         'XGBoost': xgb.XGBClassifier(random_state=42),
         'LightGBM': lgb.LGBMClassifier(random_state=42, verbose=-1),
-        'Logistic Regression': LogisticRegression(random_state=42, max_iter=1000),
+        'LogisticRegression': LogisticRegression(random_state=42, max_iter=1000),
         'SVM': SVC(random_state=42, probability=True),
         'MLP': MLPClassifier(hidden_layer_sizes=(100, 50), random_state=42, max_iter=500)
     }
@@ -323,7 +341,7 @@ def train_models(X_train, X_test, y_train, y_test, balance_method='none', scaler
         
         # Save each model
         if scaler is not None and target_encoder is not None:
-            save_model(model, name, balance_method, scaler, target_encoder, metrics)
+            save_model(model, name, balance_method, scaler, target_encoder, metrics, feature_names)
     
     return results
 
@@ -380,7 +398,8 @@ def plot_results(results, y_test, target_encoder):
                    f'{value:.3f}', ha='center', va='bottom')
     
     plt.tight_layout()
-    plt.savefig('model_performance_comparison.png', dpi=300, bbox_inches='tight')
+    os.makedirs('imgs', exist_ok=True)
+    plt.savefig('imgs/model_performance_comparison.png', dpi=300, bbox_inches='tight')
     plt.show()
     
     # 2. Confusion Matrices
@@ -403,7 +422,8 @@ def plot_results(results, y_test, target_encoder):
         axes[-1, -1].set_visible(False)
     
     plt.tight_layout()
-    plt.savefig('confusion_matrices.png', dpi=300, bbox_inches='tight')
+    os.makedirs('imgs', exist_ok=True)
+    plt.savefig('imgs/confusion_matrices.png', dpi=300, bbox_inches='tight')
     plt.show()
     
     # 3. Feature Importance (for tree-based models)
@@ -433,7 +453,8 @@ def plot_results(results, y_test, target_encoder):
                     axes[i].set_xticklabels([feature_names[j] for j in indices], rotation=45)
         
         plt.tight_layout()
-        plt.savefig('feature_importance.png', dpi=300, bbox_inches='tight')
+        os.makedirs('imgs', exist_ok=True)
+        plt.savefig('imgs/feature_importance.png', dpi=300, bbox_inches='tight')
         plt.show()
     
     # 4. ROC Curves
@@ -454,7 +475,8 @@ def plot_results(results, y_test, target_encoder):
     ax.grid(True, alpha=0.3)
     
     plt.tight_layout()
-    plt.savefig('roc_curves.png', dpi=300, bbox_inches='tight')
+    os.makedirs('imgs', exist_ok=True)
+    plt.savefig('imgs/roc_curves.png', dpi=300, bbox_inches='tight')
     plt.show()
     
     # 5. Precision-Recall Curves
@@ -474,7 +496,8 @@ def plot_results(results, y_test, target_encoder):
     ax.grid(True, alpha=0.3)
     
     plt.tight_layout()
-    plt.savefig('precision_recall_curves.png', dpi=300, bbox_inches='tight')
+    os.makedirs('imgs', exist_ok=True)
+    plt.savefig('imgs/precision_recall_curves.png', dpi=300, bbox_inches='tight')
     plt.show()
 
 def plot_balancing_comparison(all_results, target_encoder):
@@ -507,7 +530,8 @@ def plot_balancing_comparison(all_results, target_encoder):
     ax.grid(True, alpha=0.3)
     
     plt.tight_layout()
-    plt.savefig('balancing_recall_comparison.png', dpi=300, bbox_inches='tight')
+    os.makedirs('imgs', exist_ok=True)
+    plt.savefig('imgs/balancing_recall_comparison.png', dpi=300, bbox_inches='tight')
     plt.show()
     
     # 2. Overall accuracy comparison
@@ -526,7 +550,8 @@ def plot_balancing_comparison(all_results, target_encoder):
     ax.grid(True, alpha=0.3)
     
     plt.tight_layout()
-    plt.savefig('balancing_accuracy_comparison.png', dpi=300, bbox_inches='tight')
+    os.makedirs('imgs', exist_ok=True)
+    plt.savefig('imgs/balancing_accuracy_comparison.png', dpi=300, bbox_inches='tight')
     plt.show()
     
     # 3. F1-score comparison
@@ -545,7 +570,8 @@ def plot_balancing_comparison(all_results, target_encoder):
     ax.grid(True, alpha=0.3)
     
     plt.tight_layout()
-    plt.savefig('balancing_f1_comparison.png', dpi=300, bbox_inches='tight')
+    os.makedirs('imgs', exist_ok=True)
+    plt.savefig('imgs/balancing_f1_comparison.png', dpi=300, bbox_inches='tight')
     plt.show()
     
     # 4. Heatmap of all metrics
@@ -579,7 +605,8 @@ def plot_balancing_comparison(all_results, target_encoder):
         plt.colorbar(im, ax=axes[i])
     
     plt.tight_layout()
-    plt.savefig('balancing_metrics_heatmap.png', dpi=300, bbox_inches='tight')
+    os.makedirs('imgs', exist_ok=True)
+    plt.savefig('imgs/balancing_metrics_heatmap.png', dpi=300, bbox_inches='tight')
     plt.show()
 
 def detailed_classification_report(results, y_test, target_encoder):
@@ -608,7 +635,7 @@ def main():
         df = load_and_explore_data()
         
         # Preprocess data
-        df_processed, target_encoder = preprocess_data(df)
+        df_processed, target_encoder, feature_names = preprocess_data(df)
         
         # Define balancing methods to test
         balance_methods = ['undersample']
@@ -624,7 +651,7 @@ def main():
             X_train, X_test, y_train, y_test, scaler = prepare_features(df_processed, balance_method)
             
             # Train models
-            results = train_models(X_train, X_test, y_train, y_test, balance_method, scaler, target_encoder)
+            results = train_models(X_train, X_test, y_train, y_test, feature_names, balance_method, scaler, target_encoder)
             
             # Evaluate models
             comparison_df, best_model = evaluate_models(results, y_test, target_encoder)

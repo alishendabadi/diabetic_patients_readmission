@@ -22,11 +22,6 @@ The primary focus is on maximizing **Recall for the <30 days class**, as this is
 
 1. Install required packages:
 ```bash
-pip install pandas numpy matplotlib seaborn scikit-learn xgboost lightgbm imbalanced-learn shap
-```
-
-Or install from requirements.txt:
-```bash
 pip install -r requirements.txt
 ```
 
@@ -38,14 +33,9 @@ pip install -r requirements.txt
 python diabetic_readmission_classification.py
 ```
 
-3. (Optional) Run the explainability analysis on the best model:
+3. (Optional) Run the explainability analysis on the best model or any model you want:
 ```bash
 python model_explainability.py
-```
-
-4. (Optional) Load and use a saved model for predictions:
-```bash
-python load_and_use_model.py
 ```
 
 ## Output
@@ -59,29 +49,6 @@ The script will generate:
 - Performance comparison table
 - Detailed classification reports
 - Best model identification for <30 days recall
-
-### Files Generated:
-- `model_comparison_results.csv` - Detailed performance metrics for all balancing methods
-- `models/` - Directory containing all trained models as pickle files
-- `model_performance_comparison.png` - Bar charts comparing model performance
-- `confusion_matrices.png` - Confusion matrices for all models
-- `feature_importance.png` - Feature importance plots for tree-based models
-- `roc_curves.png` - ROC curves for all models and classes
-- `precision_recall_curves.png` - Precision-recall curves focusing on <30 days class
-- `balancing_recall_comparison.png` - Recall comparison across balancing methods
-- `balancing_accuracy_comparison.png` - Accuracy comparison across balancing methods
-- `balancing_f1_comparison.png` - F1-score comparison across balancing methods
-- `balancing_metrics_heatmap.png` - Heatmap of all metrics across methods
-
-### Explainability Analysis Files (when running model_explainability.py):
-- `shap_summary_*.png` - SHAP summary plots
-- `shap_importance_*.png` - SHAP feature importance plots
-- `shap_waterfall_sample_*.png` - SHAP waterfall plots for individual predictions
-- `shap_dependence_*.png` - SHAP dependence plots for top features
-- `lime_explanation_sample_*.png` - LIME explanations for individual predictions
-- `permutation_importance_*.png` - Permutation importance plots
-- `feature_distributions_*.png` - Feature distribution plots
-- `explainability_report_*.md` - Comprehensive explainability report
 
 ## Key Metrics
 
@@ -122,14 +89,6 @@ The script specifically identifies and reports the best model for predicting <30
 
 ## Class Imbalance Handling
 
-The script automatically tests three approaches to handle class imbalance:
-
-1. **No Balancing**: Uses the original imbalanced dataset
-2. **Undersampling**: Reduces majority classes to match minority class size
-3. **SMOTE**: Creates synthetic samples for minority classes
-
-This comprehensive comparison helps identify the best approach for maximizing recall on the critical <30 days class.
-
 ## Model Persistence
 
 All trained models are automatically saved as pickle files in the `models/` directory. Each model file contains:
@@ -149,19 +108,7 @@ This allows you to:
 The `model_explainability.py` script provides comprehensive model interpretability using:
 
 ### SHAP (SHapley Additive exPlanations)
-- **Summary plots**: Overall feature importance and effects
 - **Feature importance plots**: Bar charts of feature contributions
-- **Waterfall plots**: Individual prediction explanations
-- **Dependence plots**: Feature interaction effects
-
-### LIME (Local Interpretable Model-agnostic Explanations)
-- **Local explanations**: Individual prediction interpretations
-- **Feature contributions**: Which features contributed to each prediction
-
-### Additional Methods
-- **Permutation importance**: Model-agnostic feature importance
-- **Feature distributions**: Understanding feature patterns
-- **Comprehensive reports**: Detailed analysis summaries
 
 ## Customization
 
